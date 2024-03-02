@@ -36,19 +36,24 @@ import logging
 
 import yaml
 
-try:
-    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-    DEBUG_MODE = int(os.getenv("DEBUG_MODE", 0))
-    DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "main")
-    DEFAULT_STACKS_PATH = os.getenv("DEFAULT_STACKS_PATH", "stacks")
-    DEPRECATION_DAYS_LIMIT = int(os.getenv("DEPRECATION_INACTIVITY_LIMIT", 365))
-    DEPRECATED_TAG = "Deprecated"
-    REGISTRY_REPO = os.getenv("REGISTRY_REPO", "devfile/registry")
-    REMOVAL_DAYS_LIMIT = int(os.getenv("REMOVAL_DEPRECATION_LIMIT", 365))
-    PR_CREATION_LIMIT = int(os.getenv("PR_CREATION_LIMIT", 5))
-except ValueError as err:
-    logging.error("Invalid input given:: {}".format(str(err)))
-    sys.exit(1)
+
+def get_int_env_var(env_var: str, default: int) -> int:
+    try:
+        int(os.getenv(env_var, default))
+    except ValueError as err:
+        logging.error("Invalid input given for {}:: {}".format(env_var, str(err)))
+        sys.exit(1)
+
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+DEBUG_MODE = get_int_env_var("DEBUG_MODE", 0)
+DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "main")
+DEFAULT_STACKS_PATH = os.getenv("DEFAULT_STACKS_PATH", "stacks")
+DEPRECATION_DAYS_LIMIT = get_int_env_var("DEPRECATION_INACTIVITY_LIMIT", 365)
+DEPRECATED_TAG = "Deprecated"
+REGISTRY_REPO = os.getenv("REGISTRY_REPO", "devfile/registry")
+REMOVAL_DAYS_LIMIT = get_int_env_var("REMOVAL_DEPRECATION_LIMIT", 365)
+PR_CREATION_LIMIT = get_int_env_var("PR_CREATION_LIMIT", 5)
 
 
 def get_logging_level():
@@ -259,7 +264,7 @@ class GithubProvider:
 
     def _branch_already_exists(self, branch_name: str) -> bool:
         try:
-            br = self.registry_repo.get_branch(branch_name)
+            _ = self.registry_repo.get_branch(branch_name)
         except GithubException:
             return False
         return True
