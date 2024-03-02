@@ -26,6 +26,7 @@
 # 5. For every RegistryRepoPR creates a PR to github.com.
 import sys
 from typing import Any, Literal
+from github.GithubException import BadCredentialsException, GithubException
 from github import Auth, Github
 from datetime import datetime, timedelta
 from github.ContentFile import ContentFile
@@ -46,7 +47,7 @@ try:
     REMOVAL_DAYS_LIMIT = int(os.getenv("REMOVAL_DEPRECATION_LIMIT", 365))
     PR_CREATION_LIMIT = int(os.getenv("PR_CREATION_LIMIT", 5))
 except ValueError as err:
-    logging.error("Invalid input given:: {}".format(err))
+    logging.error("Invalid input given:: {}".format(str(err)))
     sys.exit(1)
 
 
@@ -61,6 +62,11 @@ logging.basicConfig(
     datefmt="%d-%b-%y %H:%M:%S",
     level=get_logging_level(),
 )
+
+
+def critical_error(msg: str) -> None:
+    logging.error(msg)
+    sys.exit(1)
 
 
 @dataclass
@@ -145,6 +151,15 @@ class GithubProvider:
     def _init_github(self, token: str) -> Github:
         logging.debug("Setting up github connection")
         _auth = Auth.Token(token)
+        _g = Github(auth=_auth)
+
+        # check if given credentials are ok
+        try:
+            _g.get_user().login
+            logging.debug("credentials given are ok")
+        except BadCredentialsException:
+            critical_error("bad credentials given for github")
+
         return Github(auth=_auth)
 
     def _get_last_modified(self, item: ContentFile) -> ContentFile:
@@ -153,7 +168,10 @@ class GithubProvider:
         """
         _c = self.registry_repo.get_commits(path=item.path)
         commits = [commit for commit in _c]
-        return commits[0].last_modified
+        if len(commits) > 0:
+            return commits[0].last_modified
+        else:
+            return datetime.strftime(datetime.now(), "%a, %d %b %Y %H:%M:%S GMT")
 
     def _get_repo_items(self, path: str) -> tuple[list[ContentFile], list[ContentFile]]:
         """
@@ -239,6 +257,13 @@ class GithubProvider:
             pr.branch_name,
         )
 
+    def _branch_already_exists(self, branch_name: str) -> bool:
+        try:
+            br = self.registry_repo.get_branch(branch_name)
+        except GithubException:
+            return False
+        return True
+
     def _create_branch(self, pr: RegistryRepoPR) -> str:
         """
         creates a branch for the given RegistryRepoPR object.
@@ -269,13 +294,26 @@ class GithubProvider:
             if _prs_created >= PR_CREATION_LIMIT:
                 logging.warn("PR creation limit is reached. Skipping")
                 break
-            self._create_branch(pr)
-            if pr.action == "deprecate":
-                self._deprecate_file(pr)
-            else:
-                self._remove_file(pr)
-            self._create_pr(pr)
-            _prs_created += 1
+
+            if self._branch_already_exists(pr.branch_name):
+                logging.warning(
+                    "branch {} already exists. Skipping pr".format(pr.branch_name)
+                )
+                continue
+            try:
+                self._create_branch(pr)
+
+                if pr.action == "deprecate":
+                    self._deprecate_file(pr)
+                else:
+                    self._remove_file(pr)
+
+                self._create_pr(pr)
+                _prs_created += 1
+            except GithubException as err:
+                logging.warning(
+                    "failed to create pr for {}:: {}".format(pr.filepath, str(err))
+                )
 
 
 class RegistryStackMaintainer:
