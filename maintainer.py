@@ -1,4 +1,30 @@
-import io
+#!/usr/bin/env python3
+#
+# This script aims to run all lifecycle actions required
+# inside a devfile registry repo. More detailed, it will
+# check all stack versions to see if they should be removed
+# or deprecated. To deprecate a stack version someone need
+# to add a "Deprecate" tag to the metadata.tags.
+
+# More information about the devfile project can be found
+# at www.devfile.io.
+
+# An example registry repo is:
+
+# https://github.com/devfile/registry
+
+# The flow of the script is very simple. It is designed with
+# the following steps:
+
+# 1. Fetches all ENV variables. All variables are listed in
+# the README.md.
+# 2. Gets all stacks from the github API and converts them
+# to RegistryStack objects.
+# 3. Checks every stack if the deprecation or removal criteria
+# are met.
+# 4. For every update action it creates a RegistryRepoPR obj.
+# 5. For every RegistryRepoPR creates a PR to github.com.
+import sys
 from typing import Any, Literal
 from github import Auth, Github
 from datetime import datetime, timedelta
@@ -9,16 +35,19 @@ import logging
 
 import yaml
 
-
-TOKEN = os.getenv("GITHUB_TOKEN")
-REGISTRY_REPO = os.getenv("REGISTRY_REPO")
-DEFAULT_STACKS_PATH = os.getenv("DEFAULT_STACKS_PATH", "stacks")
-DEPRECATION_DAYS_LIMIT = int(os.getenv("DEPRECATION_INACTIVITY_LIMIT", "365"))
-REMOVAL_DAYS_LIMIT = int(os.getenv("REMOVAL_DEPRECATION_LIMIT", "365"))
-DEBUG_MODE = int(os.getenv("DEBUG_MODE", 0))
-DEFAULT_BRANCH = "main"
-DEPRECATED_TAG = "Deprecated"
-PR_CREATION_LIMIT = 1
+try:
+    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+    DEBUG_MODE = int(os.getenv("DEBUG_MODE", 0))
+    DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "main")
+    DEFAULT_STACKS_PATH = os.getenv("DEFAULT_STACKS_PATH", "stacks")
+    DEPRECATION_DAYS_LIMIT = int(os.getenv("DEPRECATION_INACTIVITY_LIMIT", 365))
+    DEPRECATED_TAG = "Deprecated"
+    REGISTRY_REPO = os.getenv("REGISTRY_REPO", "devfile/registry")
+    REMOVAL_DAYS_LIMIT = int(os.getenv("REMOVAL_DEPRECATION_LIMIT", 365))
+    PR_CREATION_LIMIT = int(os.getenv("PR_CREATION_LIMIT", 5))
+except ValueError as err:
+    logging.error("Invalid input given:: {}".format(err))
+    sys.exit(1)
 
 
 def get_logging_level():
@@ -30,12 +59,16 @@ def get_logging_level():
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%d-%b-%y %H:%M:%S",
-    level=logging.DEBUG,
+    level=get_logging_level(),
 )
 
 
 @dataclass
 class RegistryRepoPR:
+    """
+    represents a github Pull Request creation action.
+    """
+
     action: Literal["deprecate", "remove"]
     branch_name: str
     commit_message: str
@@ -47,6 +80,10 @@ class RegistryRepoPR:
 
 
 class RegistryStack:
+    """
+    a stack version fetched from the devfile registry.
+    """
+
     def __init__(
         self,
         path: str,
@@ -74,6 +111,9 @@ class RegistryStack:
         )
 
     def _get_last_modified(self, last_modified: str) -> datetime:
+        """
+        converts the string value from github api to a datetime object.
+        """
         return datetime.strptime(last_modified, "%a, %d %b %Y %H:%M:%S %Z")
 
     def _get_deprecated(self, raw_content: str) -> bool:
@@ -81,6 +121,9 @@ class RegistryStack:
         return "deprecated" in [i.lower() for i in content_dict["metadata"]["tags"]]
 
     def _get_owners(self, owners_content: str | None) -> list[str]:
+        """
+        converts the owners file found for the stack to a list of strings.
+        """
         if owners_content is None:
             return []
 
@@ -89,7 +132,13 @@ class RegistryStack:
 
 
 class GithubProvider:
-    def __init__(self, token: str = TOKEN, registry_url: str = REGISTRY_REPO) -> None:
+    """
+    manages all github API operations ran inside the script.
+    """
+
+    def __init__(
+        self, token: str = GITHUB_TOKEN, registry_url: str = REGISTRY_REPO
+    ) -> None:
         self.gb = self._init_github(token)
         self.registry_repo = self.gb.get_repo(registry_url)
 
@@ -99,20 +148,29 @@ class GithubProvider:
         return Github(auth=_auth)
 
     def _get_last_modified(self, item: ContentFile) -> ContentFile:
+        """
+        gets the datatime of the last commit related to this ContentFile.
+        """
         _c = self.registry_repo.get_commits(path=item.path)
         commits = [commit for commit in _c]
         return commits[0].last_modified
 
     def _get_repo_items(self, path: str) -> tuple[list[ContentFile], list[ContentFile]]:
+        """
+        gets all items inside the repo having filename in [/devfile.yaml, /devfile.yml,
+        /OWNERS]
+        """
         devfiles: list[ContentFile] = []
         owner_files: list[ContentFile] = []
         logging.info("Fetching repo files")
         repo_items: list[ContentFile] = self.registry_repo.get_contents(path)
         for item in repo_items:
+            # if the item fetched is a dir get its contents too.
             if item.type == "dir":
                 repo_items.extend(self.registry_repo.get_contents(item.path))
             elif item.path.endswith(("/devfile.yaml", "/devfile.yml")):
                 devfiles.append(item)
+            # exclude the stack/OWNERS as it matches all devfiles fetched.
             elif item.path.lower().endswith("/owners") and item.path != "stacks/OWNERS":
                 owner_files.append(item)
         return devfiles, owner_files
@@ -120,6 +178,10 @@ class GithubProvider:
     def _get_matched_devfile_owners(
         self, raw_devfiles: list[ContentFile], raw_owner_files: list[ContentFile]
     ) -> list[tuple[ContentFile, ContentFile]]:
+        """
+        matches every devfile fetched from the registry repo with an OWNERS file.
+        If there is no OWNERS file found it matches a NoneType.
+        """
         _matchings: list[tuple[ContentFile, ContentFile]] = []
         for raw_devfile in raw_devfiles:
             _matched = False
@@ -133,6 +195,10 @@ class GithubProvider:
         return _matchings
 
     def get_stacks(self, path: str = DEFAULT_STACKS_PATH) -> list[RegistryStack]:
+        """
+        gets all stack versions from the registry and converts them into a list
+        of RegistryStack objects.
+        """
         raw_devfiles, raw_owner_files = self._get_repo_items(path)
         _matchings = self._get_matched_devfile_owners(raw_devfiles, raw_owner_files)
         return [
@@ -151,6 +217,9 @@ class GithubProvider:
         ]
 
     def _deprecate_file(self, pr: RegistryRepoPR) -> None:
+        """
+        creates a commit for the deprecated stack.
+        """
         self.registry_repo.update_file(
             pr.filepath,
             pr.commit_message,
@@ -160,6 +229,9 @@ class GithubProvider:
         )
 
     def _remove_file(self, pr: RegistryRepoPR) -> None:
+        """
+        creates a commit for the removed stack.
+        """
         _ = self.registry_repo.delete_file(
             pr.filepath,
             pr.commit_message,
@@ -168,12 +240,18 @@ class GithubProvider:
         )
 
     def _create_branch(self, pr: RegistryRepoPR) -> str:
+        """
+        creates a branch for the given RegistryRepoPR object.
+        """
         base = self.registry_repo.get_branch(DEFAULT_BRANCH)
         _ = self.registry_repo.create_git_ref(
             ref="refs/heads/" + pr.branch_name, sha=base.commit.sha
         )
 
     def _create_pr(self, pr: RegistryRepoPR):
+        """
+        creates a pull request for the given RegistryRepoPR object.
+        """
         _ = self.registry_repo.create_pull(
             base=DEFAULT_BRANCH,
             head=pr.branch_name,
@@ -182,6 +260,10 @@ class GithubProvider:
         )
 
     def create_prs(self, prs: list[RegistryRepoPR]):
+        """
+        creates all prs for the given list RegistryRepoPR objects.
+        Skips if the PR_CREATION_LIMIT has been reached.
+        """
         _prs_created = 0
         for pr in prs:
             if _prs_created >= PR_CREATION_LIMIT:
@@ -198,6 +280,10 @@ class GithubProvider:
 
 class RegistryStackMaintainer:
     def update(self, stack: RegistryStack) -> RegistryRepoPR | None:
+        """
+        checks if the given stack matches the removal or deprecation
+        citeria.
+        """
         if not stack.deprecated and self._limit_reached(
             stack.last_modified, DEPRECATION_DAYS_LIMIT
         ):
@@ -231,7 +317,22 @@ class RegistryStackMaintainer:
             days=days_limit
         )
 
+    def _add_owners_mention(self, desc_list: list[str], owners: list[str]) -> list[str]:
+        """
+        mentions owners if they exist.
+        """
+        if len(owners) > 0:
+            desc_list.append(
+                "The PR should be reviewed by: {}".format(
+                    ", ".join([f"@{owner}" for owner in owners])
+                )
+            )
+        return desc_list
+
     def _deprecate(self, stack: RegistryStack) -> RegistryRepoPR:
+        """
+        updates the stack content with the deprecated tag.
+        """
         devfile_dict = yaml.safe_load(stack.devfile_content)
         devfile_dict["metadata"]["tags"].append(DEPRECATED_TAG)
         devfile_updated_content = yaml.dump(devfile_dict)
@@ -242,12 +343,8 @@ class RegistryStackMaintainer:
                 stack.name, DEPRECATION_DAYS_LIMIT
             ),
         ]
-        # if len(owners) > 0:
-        #     desc_list.append(
-        #         "The PR should be reviewed by: {}".format(
-        #             ", ".join([f"@{owner}" for owner in owners])
-        #         )
-        #     )
+
+        # self._add_owners_mention(desc_list, stack.owners)
 
         return RegistryRepoPR(
             title="chore: Deprecate {} stack after {} days of inactivity".format(
@@ -265,18 +362,17 @@ class RegistryStackMaintainer:
         )
 
     def _remove(self, stack: RegistryStack) -> RegistryRepoPR:
+        """
+        creates a RegistryRepoPR object for the removal action.
+        """
         desc_list = [
             "## What this PR does?\n",
             "This PR deprecates the {} stack as it has reached the inactivity limit of {} days.".format(
                 stack.name, DEPRECATION_DAYS_LIMIT
             ),
         ]
-        # if len(owners) > 0:
-        #     desc_list.append(
-        #         "The PR should be reviewed by: {}".format(
-        #             ", ".join([f"@{owner}" for owner in owners])
-        #         )
-        #     )
+
+        # self._add_owners_mention(desc_list, stack.owners)
 
         return RegistryRepoPR(
             title="chore: Remove {} stack after {} days of inactivity".format(
