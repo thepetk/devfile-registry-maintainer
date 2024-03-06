@@ -37,9 +37,13 @@ import logging
 import yaml
 
 
+class CriticalException(Exception):
+    pass
+
+
 def get_int_env_var(env_var: str, default: int) -> int:
     try:
-        int(os.getenv(env_var, default))
+        return int(os.getenv(env_var, default))
     except ValueError as err:
         logging.error("Invalid input given for {}:: {}".format(env_var, str(err)))
         sys.exit(1)
@@ -47,13 +51,16 @@ def get_int_env_var(env_var: str, default: int) -> int:
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 DEBUG_MODE = get_int_env_var("DEBUG_MODE", 0)
+DATETIME_STRFTIME_FORMAT = "%a, %d %b %Y %H:%M:%S GMT"
+DATETIME_STRPTIME_FORMAT = "%a, %d %b %Y %H:%M:%S %Z"
 DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "main")
-DEFAULT_STACKS_PATH = os.getenv("DEFAULT_STACKS_PATH", "stacks")
 DEPRECATION_DAYS_LIMIT = get_int_env_var("DEPRECATION_INACTIVITY_LIMIT", 365)
 DEPRECATED_TAG = "Deprecated"
-REGISTRY_REPO = os.getenv("REGISTRY_REPO", "devfile/registry")
-REMOVAL_DAYS_LIMIT = get_int_env_var("REMOVAL_DEPRECATION_LIMIT", 365)
 PR_CREATION_LIMIT = get_int_env_var("PR_CREATION_LIMIT", 5)
+REGISTRY_REPO = os.getenv("REGISTRY_REPO", "thepetk/registry")
+REMOVAL_DAYS_LIMIT = get_int_env_var("REMOVAL_DEPRECATION_LIMIT", 365)
+STACKS_DIR = os.getenv("STACKS_DIR", "stacks")
+TEST_MODE = get_int_env_var("TEST_MODE", "0")
 
 
 def get_logging_level():
@@ -116,7 +123,7 @@ class RegistryStack:
 
     def _get_stack_name(self, path: str) -> str:
         return (
-            path.replace("{}/".format(DEFAULT_STACKS_PATH), "")
+            path.replace("{}/".format(STACKS_DIR), "")
             .replace("/devfile.yaml", "")
             .replace("/devfile.yml", "")
         )
@@ -125,7 +132,7 @@ class RegistryStack:
         """
         converts the string value from github api to a datetime object.
         """
-        return datetime.strptime(last_modified, "%a, %d %b %Y %H:%M:%S %Z")
+        return datetime.strptime(last_modified, DATETIME_STRPTIME_FORMAT)
 
     def _get_deprecated(self, raw_content: str) -> bool:
         content_dict: dict[str, Any] = yaml.safe_load(raw_content)
@@ -142,6 +149,11 @@ class RegistryStack:
         return owners_dict.get("reviewers", [])
 
 
+class IndentDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super(IndentDumper, self).increase_indent(flow, False)
+
+
 class GithubProvider:
     """
     manages all github API operations ran inside the script.
@@ -156,6 +168,11 @@ class GithubProvider:
     def _init_github(self, token: str) -> Github:
         logging.debug("Setting up github connection")
         _auth = Auth.Token(token)
+
+        # Test cases should not authenticate github
+        if TEST_MODE > 0:
+            return Github()
+
         _g = Github(auth=_auth)
 
         # check if given credentials are ok
@@ -163,11 +180,11 @@ class GithubProvider:
             _g.get_user().login
             logging.debug("credentials given are ok")
         except BadCredentialsException:
-            critical_error("bad credentials given for github")
+            raise CriticalException("bad credentials given for github")
 
         return Github(auth=_auth)
 
-    def _get_last_modified(self, item: ContentFile) -> ContentFile:
+    def _get_last_modified(self, item: ContentFile) -> str:
         """
         gets the datatime of the last commit related to this ContentFile.
         """
@@ -176,7 +193,7 @@ class GithubProvider:
         if len(commits) > 0:
             return commits[0].last_modified
         else:
-            return datetime.strftime(datetime.now(), "%a, %d %b %Y %H:%M:%S GMT")
+            return datetime.strftime(datetime.now(), DATETIME_STRFTIME_FORMAT)
 
     def _get_repo_items(self, path: str) -> tuple[list[ContentFile], list[ContentFile]]:
         """
@@ -217,7 +234,7 @@ class GithubProvider:
                 _matchings.append((raw_devfile, None))
         return _matchings
 
-    def get_stacks(self, path: str = DEFAULT_STACKS_PATH) -> list[RegistryStack]:
+    def get_stacks(self, path: str = STACKS_DIR) -> list[RegistryStack]:
         """
         gets all stack versions from the registry and converts them into a list
         of RegistryStack objects.
@@ -282,6 +299,7 @@ class GithubProvider:
         """
         creates a pull request for the given RegistryRepoPR object.
         """
+        logging.info("creating pr for {} branch".format(pr.branch_name))
         _ = self.registry_repo.create_pull(
             base=DEFAULT_BRANCH,
             head=pr.branch_name,
@@ -319,6 +337,7 @@ class GithubProvider:
                 logging.warning(
                     "failed to create pr for {}:: {}".format(pr.filepath, str(err))
                 )
+        logging.info("created {} pull requests".format(_prs_created))
 
 
 class RegistryStackMaintainer:
@@ -378,7 +397,9 @@ class RegistryStackMaintainer:
         """
         devfile_dict = yaml.safe_load(stack.devfile_content)
         devfile_dict["metadata"]["tags"].append(DEPRECATED_TAG)
-        devfile_updated_content = yaml.dump(devfile_dict)
+        devfile_updated_content = yaml.dump(
+            devfile_dict, Dumper=IndentDumper, sort_keys=False
+        )
 
         desc_list = [
             "## What this PR does?\n",
@@ -436,7 +457,12 @@ def main():
     provider = GithubProvider()
     maintainer = RegistryStackMaintainer()
     prs: list[RegistryRepoPR] = []
-    stacks = provider.get_stacks()
+
+    try:
+        stacks = provider.get_stacks()
+    except CriticalException as err:
+        critical_error(str(err))
+
     logging.info("Fetched {} stacks from repo".format(len(stacks)))
     for stack in stacks:
         pr = maintainer.update(stack)
