@@ -13,3 +13,7 @@ A github action that deprecates all devfile registry stack meeting specific depr
 | `REGISTRY_REPO`          | No       | devfile/registry | The registry github repo.                 |
 | `REMOVAL_DAYS_LIMIT`     | No       | 365              | Days of inactivity limit for removal.     |
 | `STACKS_DIR`             | No       | stacks           | Stacks dir path.                          |
+
+## Contributing
+
+Contributions are always welcomed, feel free to open an issue for any feature you would like to add or for any bug you would like to report [here](github.com/thepetk/devfile-registry-maintainer/issues/new).
