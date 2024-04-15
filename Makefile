@@ -1,5 +1,5 @@
 test:
-	TEST_MODE="1" pytest
+	pytest -c drm_pytest.ini
 
 format:
 	isort --profile black . && black . && flake8
