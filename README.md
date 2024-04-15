@@ -44,6 +44,7 @@ jobs:
         id: deprecate-remove
         uses: thepetk/devfile-registry-maintainer@<version-hash>
         with:
+          registry_repo_token: {{ secrets.GITHUB_TOKEN }}
           pr_creation_limit: <limit of PRs created per Run>
           deprecation_days_limit: <limit of inactivity days for deprecation>
           removal_days_limit: <limit of inactivity days for removal>
