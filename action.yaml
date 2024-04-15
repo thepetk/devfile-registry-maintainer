@@ -22,8 +22,7 @@ inputs:
     default: "5"
   registry_repo:
     description: "The path of the registry github repo"
-    required: false
-    default: "thepetk/registry"
+    required: true
   removal_days_limit:
     description: "Days of inactivity limit for removal"
     required: false

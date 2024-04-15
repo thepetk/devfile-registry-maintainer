@@ -4,16 +4,16 @@ A github action that deprecates all devfile registry stack meeting specific depr
 
 ## Inputs
 
-| Name                     | Required | Default          | Description                                                                         |
-| ------------------------ | -------- | ---------------- | ----------------------------------------------------------------------------------- |
-| `registry_repo_token`    | Yes      | None             | 'Token for the registry repo. Can be passed in using `{{ secrets.GITHUB_TOKEN }}`.' |
-| `debug_mode`             | No       | 0                | Sets logging level to DEBUG [0/1].                                                  |
-| `default_branch`         | No       | main             | Default branch of the registry repo.                                                |
-| `deprecation_days_limit` | No       | 365              | Days of inactivity limit for deprecation.                                           |
-| `pr_creation_limit`      | No       | 5                | Limit of PRs created inside a single run.                                           |
-| `registry_repo`          | No       | devfile/registry | The registry github repo.                                                           |
-| `removal_days_limit`     | No       | 365              | Days of inactivity limit for removal.                                               |
-| `stacks_dir`             | No       | stacks           | Stacks dir path.                                                                    |
+| Name                     | Required | Default | Description                                                                         |
+| ------------------------ | -------- | ------- | ----------------------------------------------------------------------------------- |
+| `registry_repo_token`    | Yes      | None    | 'Token for the registry repo. Can be passed in using `{{ secrets.GITHUB_TOKEN }}`.' |
+| `registry_repo`          | Yes      | None    | The registry github repo.                                                           |
+| `debug_mode`             | No       | 0       | Sets logging level to DEBUG [0/1].                                                  |
+| `default_branch`         | No       | main    | Default branch of the registry repo.                                                |
+| `deprecation_days_limit` | No       | 365     | Days of inactivity limit for deprecation.                                           |
+| `pr_creation_limit`      | No       | 5       | Limit of PRs created inside a single run.                                           |
+| `removal_days_limit`     | No       | 365     | Days of inactivity limit for removal.                                               |
+| `stacks_dir`             | No       | stacks  | Stacks dir path.                                                                    |
 
 ## Output
 
@@ -44,10 +44,16 @@ jobs:
         id: deprecate-remove
         uses: thepetk/devfile-registry-maintainer@<version-hash>
         with:
+          # Required inputs
           registry_repo_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_creation_limit: <limit of PRs created per Run>
+          registry_repo: <my-org/username>/<registry-repo-name>
+          # Optional inputs
           deprecation_days_limit: <limit of inactivity days for deprecation>
+          pr_creation_limit: <limit of PRs created per Run>
           removal_days_limit: <limit of inactivity days for removal>
+          debug_mode: <should log on debug leven (0) or info (1)>
+          default_branch: <target branch name>
+          stacks_dir: <path of stacks dir inside the repo>
 ```
 
 ## Releases
