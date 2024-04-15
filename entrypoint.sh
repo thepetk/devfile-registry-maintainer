@@ -9,4 +9,4 @@ set -e
 # REGISTRY_REPO=$INPUT_REGISTRY_REPO \
 # REMOVAL_DAYS_LIMIT=$INPUT_REMOVAL_DAYS_LIMIT \
 # STACKS_DIR=$INPUT_STACKS_DIR \
-python maintainer.py
+python /maintainer.py

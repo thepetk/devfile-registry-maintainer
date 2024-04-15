@@ -6,11 +6,9 @@ LABEL "repository"="http://github.com/thepetk/devfile_registry_maintainer"
 LABEL "homepage"="http://github.com/actions"
 LABEL "maintainer"="thepetk <thepetk@gmail.com>"
 
-WORKDIR /github/workspace/
-
 COPY entrypoint.sh /entrypoint.sh
-COPY requirements.txt .
-COPY maintainer.py .
+COPY requirements.txt /requirements.txt
+COPY maintainer.py /maintainer.py
 
 RUN pip install -r requirements.txt
 
