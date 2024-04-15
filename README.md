@@ -14,6 +14,13 @@ A github action that deprecates all devfile registry stack meeting specific depr
 | `REMOVAL_DAYS_LIMIT`     | No       | 365              | Days of inactivity limit for removal.     |
 | `STACKS_DIR`             | No       | stacks           | Stacks dir path.                          |
 
+## Releases
+
+An `devfile-registry-maintainer` release is created each time a PR having updates on code is merged. You can create a new release [here](https://github.com/thepetk/devfile-registry-maintainer/releases/new)
+
+A tag should be created with the version of the release as name. The `devfile-registry-maintainer` follows the `v{major}.{minor}.{bugfix}` format (e.g `v0.1.0`). The title of the release has to be the equal to the new tag created for the release.
+The description of the release is optional. You may add a description if there were outstanding updates in the project, not mentioned in the issues or PRs of this release.
+
 ## Contributing
 
 Contributions are always welcomed, feel free to open an issue for any feature you would like to add or for any bug you would like to report [here](github.com/thepetk/devfile-registry-maintainer/issues/new).
