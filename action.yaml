@@ -1,6 +1,9 @@
 name: "Devfile Registry Stack Deprecator"
 description: "Action that deprecates inactive devfile registry stacks found insie a registry repo"
 inputs:
+  registry_repo_token:
+    description: 'Token for the registry repo. Can be passed in using `{{ secrets.GITHUB_TOKEN }}`.'
+    required: true
   debug_mode:
     description: "Sets logging level to DEBUG [0/1]"
     required: false
@@ -33,6 +36,7 @@ runs:
   using: "docker"
   image: "Dockerfile"
   args:
+    - ${{ inputs.registry_repo_token }}
     - ${{ inputs.debug_mode }}
     - ${{ inputs.default_branch }}
     - ${{ inputs.deprecation_days_limit }}

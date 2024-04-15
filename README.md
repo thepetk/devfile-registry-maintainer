@@ -4,24 +4,50 @@ A github action that deprecates all devfile registry stack meeting specific depr
 
 ## Inputs
 
-| Name                     | Required | Default          | Description                               |
-| ------------------------ | -------- | ---------------- | ----------------------------------------- |
-| `DEBUG_MODE`             | No       | 0                | Sets logging level to DEBUG [0/1].        |
-| `DEFAULT_BRANCH`         | No       | main             | Default branch of the registry repo.      |
-| `DEPRECATION_DAYS_LIMIT` | No       | 365              | Days of inactivity limit for deprecation. |
-| `PR_CREATION_LIMIT`      | No       | 5                | Limit of PRs created inside a single run. |
-| `REGISTRY_REPO`          | No       | devfile/registry | The registry github repo.                 |
-| `REMOVAL_DAYS_LIMIT`     | No       | 365              | Days of inactivity limit for removal.     |
-| `STACKS_DIR`             | No       | stacks           | Stacks dir path.                          |
+| Name                     | Required | Default          | Description                                                                         |
+| ------------------------ | -------- | ---------------- | ----------------------------------------------------------------------------------- |
+| `registry_repo_token`    | Yes      | None             | 'Token for the registry repo. Can be passed in using `{{ secrets.GITHUB_TOKEN }}`.' |
+| `debug_mode`             | No       | 0                | Sets logging level to DEBUG [0/1].                                                  |
+| `default_branch`         | No       | main             | Default branch of the registry repo.                                                |
+| `deprecation_days_limit` | No       | 365              | Days of inactivity limit for deprecation.                                           |
+| `pr_creation_limit`      | No       | 5                | Limit of PRs created inside a single run.                                           |
+| `registry_repo`          | No       | devfile/registry | The registry github repo.                                                           |
+| `removal_days_limit`     | No       | 365              | Days of inactivity limit for removal.                                               |
+| `stacks_dir`             | No       | stacks           | Stacks dir path.                                                                    |
 
 ## Output
 
-The action will open one PR (on the `REGISTRY_REPO` targeting the `DEFAULT_BRANCH`) for each `registry stack` that:
+The action will open one PR (on the `registry_repo` targeting the `default_branch`) for each `registry stack` that:
 
-- Has reached the `DEPRECATION_DAYS_LIMIT` and is not deprecated yet (deprecation action).
-- Has reached the `DEPRECATION_DAYS_LIMIT` and is not removed yet (deprecation action).
+- Has reached the `deprecation_days_limit` and is not deprecated yet (deprecation action).
+- Has reached the `removal_days_limit` and is not removed yet (deprecation action).
 
-Note that if the `PR_CREATION_LIMIT` is reached all the next PRs will be skipped
+Note that if the `pr_creation_limit` is reached all the next PRs will be skipped
+
+## Example Usage
+
+An example usage of this Job is:
+
+```yaml
+name: Devfile Registry Maintainer
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+
+jobs:
+  devfile-registry-maintainer:
+    runs-on: ubuntu-latest
+    name: Maintain registry stacks
+    steps:
+      - name: Deprecate or Remove expired stacks
+        id: deprecate-remove
+        uses: thepetk/devfile-registry-maintainer@<version-hash>
+        with:
+          pr_creation_limit: <limit of PRs created per Run>
+          deprecation_days_limit: <limit of inactivity days for deprecation>
+          removal_days_limit: <limit of inactivity days for removal>
+```
 
 ## Releases
 
