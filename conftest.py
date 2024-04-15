@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import os
 
 import pytest
 
@@ -75,6 +76,7 @@ def test_registry_stack_no_owners():
 
 @pytest.fixture(scope="session")
 def github_provider():
+    os.environ["TEST_MODE"] = "1"
     yield GithubProvider()
 
 
