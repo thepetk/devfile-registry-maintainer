@@ -1,5 +1,5 @@
 test:
-	ENV="test" pytest
+	TEST_MODE="1" pytest
 
 format:
 	isort --profile black . && black . && flake8
