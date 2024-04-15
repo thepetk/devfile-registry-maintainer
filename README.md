@@ -1,8 +1,8 @@
-# Devfile Registry Stack Maintainer
+# Devfile Registry Stack Maintainer Action
 
 A github action that deprecates all devfile registry stack meeting specific deprecation criteria
 
-### Inputs
+## Inputs
 
 | Name                     | Required | Default          | Description                               |
 | ------------------------ | -------- | ---------------- | ----------------------------------------- |
@@ -13,6 +13,15 @@ A github action that deprecates all devfile registry stack meeting specific depr
 | `REGISTRY_REPO`          | No       | devfile/registry | The registry github repo.                 |
 | `REMOVAL_DAYS_LIMIT`     | No       | 365              | Days of inactivity limit for removal.     |
 | `STACKS_DIR`             | No       | stacks           | Stacks dir path.                          |
+
+## Output
+
+The action will open one PR (on the `REGISTRY_REPO` targeting the `DEFAULT_BRANCH`) for each `registry stack` that:
+
+- Has reached the `DEPRECATION_DAYS_LIMIT` and is not deprecated yet (deprecation action).
+- Has reached the `DEPRECATION_DAYS_LIMIT` and is not removed yet (deprecation action).
+
+Note that if the `PR_CREATION_LIMIT` is reached all the next PRs will be skipped
 
 ## Releases
 
