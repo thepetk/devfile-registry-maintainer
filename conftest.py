@@ -1,7 +1,14 @@
 from datetime import datetime, timedelta
-from maintainer import DEPRECATION_DAYS_LIMIT, GithubProvider, RegistryStack
+
 import pytest
-from tests.mocker import GithubMocker
+
+from maintainer import (
+    DEPRECATION_DAYS_LIMIT,
+    GithubProvider,
+    RegistryStack,
+    RegistryStackMaintainer,
+    get_YAML,
+)
 
 
 @pytest.fixture(scope="session")
@@ -25,6 +32,17 @@ def test_registry_stack(owners_content: str):
         path="stacks/test-stack/1.1.0/devfile.yaml",
         raw_content="metadata:\n title: test-stack\n tags:\n - tag",
         last_modified="Sun, 03 Mar 2024 22:01:01 GMT",
+        file_sha="somesha",
+        owners_content=owners_content,
+    )
+
+
+@pytest.fixture(scope="session")
+def test_expired_non_deprecated_registry_stack(owners_content: str):
+    yield RegistryStack(
+        path="stacks/test-stack/1.2.0/devfile.yaml",
+        raw_content="metadata:\n title: test-stack\n tags:\n - tag",
+        last_modified="Sun, 03 Mar 2022 22:01:01 GMT",
         file_sha="somesha",
         owners_content=owners_content,
     )
@@ -58,3 +76,13 @@ def test_registry_stack_no_owners():
 @pytest.fixture(scope="session")
 def github_provider():
     yield GithubProvider()
+
+
+@pytest.fixture(scope="session")
+def yaml_provider():
+    yield get_YAML()
+
+
+@pytest.fixture(scope="session")
+def registry_stack_maintainer():
+    yield RegistryStackMaintainer()

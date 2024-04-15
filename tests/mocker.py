@@ -1,13 +1,14 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+
 from github.Commit import Commit
 from github.ContentFile import ContentFile
 from github.Requester import Requester
-from dataclasses import dataclass
 
 from maintainer import DATETIME_STRFTIME_FORMAT, DEPRECATION_DAYS_LIMIT
 
 MOCKED_REQUESTER = Requester(
-    auth="some_auth",
+    auth="some_auth",  # type: ignore
     base_url="https://some.base.url",
     timeout=1,
     user_agent="some_agent",
@@ -16,7 +17,7 @@ MOCKED_REQUESTER = Requester(
     retry=1,
     pool_size=1,
 )
-MOCKED_HEADERS = {"server": "server"}
+MOCKED_HEADERS: dict[str, str | int] = {"server": "server"}
 
 
 @dataclass

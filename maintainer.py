@@ -24,17 +24,18 @@
 # are met.
 # 4. For every update action it creates a RegistryRepoPR obj.
 # 5. For every RegistryRepoPR creates a PR to github.com.
-import sys
-from typing import Any, Literal
-from github.GithubException import BadCredentialsException, GithubException
-from github import Auth, Github
-from datetime import datetime, timedelta
-from github.ContentFile import ContentFile
-from dataclasses import dataclass
-import os
+import io
 import logging
+import os
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Literal
 
-import yaml
+from github import Auth, Github
+from github.ContentFile import ContentFile
+from github.GithubException import BadCredentialsException, GithubException
+from ruamel.yaml import YAML
 
 
 class CriticalException(Exception):
@@ -49,7 +50,7 @@ def get_int_env_var(env_var: str, default: int) -> int:
         sys.exit(1)
 
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 DEBUG_MODE = get_int_env_var("DEBUG_MODE", 0)
 DATETIME_STRFTIME_FORMAT = "%a, %d %b %Y %H:%M:%S GMT"
 DATETIME_STRPTIME_FORMAT = "%a, %d %b %Y %H:%M:%S %Z"
@@ -60,7 +61,7 @@ PR_CREATION_LIMIT = get_int_env_var("PR_CREATION_LIMIT", 5)
 REGISTRY_REPO = os.getenv("REGISTRY_REPO", "thepetk/registry")
 REMOVAL_DAYS_LIMIT = get_int_env_var("REMOVAL_DEPRECATION_LIMIT", 365)
 STACKS_DIR = os.getenv("STACKS_DIR", "stacks")
-TEST_MODE = get_int_env_var("TEST_MODE", "0")
+TEST_MODE = get_int_env_var("TEST_MODE", 0)
 
 
 def get_logging_level():
@@ -79,6 +80,44 @@ logging.basicConfig(
 def critical_error(msg: str) -> None:
     logging.error(msg)
     sys.exit(1)
+
+
+class YAMLConfig:
+    def __init__(
+        self,
+        preserve_quotes: bool = True,
+        default_flow_style: bool = False,
+        default_style: bool = False,
+        width: int = 4096,
+        mapping_indent: int = 2,
+        sequence_indent: int = 4,
+        offset_indent: int = 2,
+    ) -> None:
+        self.preserve_quotes = preserve_quotes
+        self.default_flow_style = default_flow_style
+        self.width = width
+        self.default_style = default_style
+        self.mapping_indent = mapping_indent
+        self.sequence_indent = sequence_indent
+        self.offset_indent = offset_indent
+
+    def config(self, _yaml: YAML) -> YAML:
+        _yaml.preserve_quotes = self.preserve_quotes
+        _yaml.default_flow_style = self.default_flow_style
+        _yaml.width = self.width
+        _yaml.default_style = self.default_style  # type: ignore
+        _yaml.indent(
+            mapping=self.mapping_indent,
+            sequence=self.sequence_indent,
+            offset=self.offset_indent,
+        )
+        return _yaml
+
+
+def get_YAML() -> YAML:
+    _yaml = YAML()
+    _config = YAMLConfig()
+    return _config.config(_yaml)
 
 
 @dataclass
@@ -110,6 +149,7 @@ class RegistryStack:
         file_sha: str,
         owners_content: str | None,
     ) -> None:
+        self.yaml = get_YAML()
         self.name = self._get_stack_name(path)
         self.devfile_path = path
         self.devfile_content = raw_content
@@ -135,7 +175,7 @@ class RegistryStack:
         return datetime.strptime(last_modified, DATETIME_STRPTIME_FORMAT)
 
     def _get_deprecated(self, raw_content: str) -> bool:
-        content_dict: dict[str, Any] = yaml.safe_load(raw_content)
+        content_dict: dict[str, Any] = self.yaml.load(raw_content)
         return "deprecated" in [i.lower() for i in content_dict["metadata"]["tags"]]
 
     def _get_owners(self, owners_content: str | None) -> list[str]:
@@ -145,13 +185,8 @@ class RegistryStack:
         if owners_content is None:
             return []
 
-        owners_dict: dict[str, Any] = yaml.safe_load(owners_content)
+        owners_dict: dict[str, Any] = self.yaml.load(owners_content)
         return owners_dict.get("reviewers", [])
-
-
-class IndentDumper(yaml.Dumper):
-    def increase_indent(self, flow=False, indentless=False):
-        return super(IndentDumper, self).increase_indent(flow, False)
 
 
 class GithubProvider:
@@ -178,7 +213,6 @@ class GithubProvider:
         # check if given credentials are ok
         try:
             _g.get_user().login
-            logging.debug("credentials given are ok")
         except BadCredentialsException:
             raise CriticalException("bad credentials given for github")
 
@@ -191,7 +225,7 @@ class GithubProvider:
         _c = self.registry_repo.get_commits(path=item.path)
         commits = [commit for commit in _c]
         if len(commits) > 0:
-            return commits[0].last_modified
+            return "" if commits[0].last_modified is None else commits[0].last_modified
         else:
             return datetime.strftime(datetime.now(), DATETIME_STRFTIME_FORMAT)
 
@@ -203,11 +237,11 @@ class GithubProvider:
         devfiles: list[ContentFile] = []
         owner_files: list[ContentFile] = []
         logging.info("Fetching repo files")
-        repo_items: list[ContentFile] = self.registry_repo.get_contents(path)
+        repo_items: list[ContentFile] = self.registry_repo.get_contents(path)  # type: ignore # noqa: E501
         for item in repo_items:
             # if the item fetched is a dir get its contents too.
             if item.type == "dir":
-                repo_items.extend(self.registry_repo.get_contents(item.path))
+                repo_items.extend(self.registry_repo.get_contents(item.path))  # type: ignore # noqa: E501
             elif item.path.endswith(("/devfile.yaml", "/devfile.yml")):
                 devfiles.append(item)
             # exclude the stack/OWNERS as it matches all devfiles fetched.
@@ -217,12 +251,12 @@ class GithubProvider:
 
     def _get_matched_devfile_owners(
         self, raw_devfiles: list[ContentFile], raw_owner_files: list[ContentFile]
-    ) -> list[tuple[ContentFile, ContentFile]]:
+    ) -> list[tuple[ContentFile, ContentFile | None]]:
         """
         matches every devfile fetched from the registry repo with an OWNERS file.
         If there is no OWNERS file found it matches a NoneType.
         """
-        _matchings: list[tuple[ContentFile, ContentFile]] = []
+        _matchings: list[tuple[ContentFile, ContentFile | None]] = []
         for raw_devfile in raw_devfiles:
             _matched = False
             for raw_owner_file in raw_owner_files:
@@ -263,7 +297,7 @@ class GithubProvider:
         self.registry_repo.update_file(
             pr.filepath,
             pr.commit_message,
-            pr.devfile_updated_content,
+            pr.devfile_updated_content,  # type: ignore
             pr.file_sha,
             pr.branch_name,
         )
@@ -286,7 +320,7 @@ class GithubProvider:
             return False
         return True
 
-    def _create_branch(self, pr: RegistryRepoPR) -> str:
+    def _create_branch(self, pr: RegistryRepoPR) -> None:
         """
         creates a branch for the given RegistryRepoPR object.
         """
@@ -341,6 +375,9 @@ class GithubProvider:
 
 
 class RegistryStackMaintainer:
+    def __init__(self) -> None:
+        self.yaml = get_YAML()
+
     def update(self, stack: RegistryStack) -> RegistryRepoPR | None:
         """
         checks if the given stack matches the removal or deprecation
@@ -375,9 +412,7 @@ class RegistryStackMaintainer:
             return None
 
     def _limit_reached(self, last_modified: datetime, days_limit: int) -> bool:
-        return datetime.now() + timedelta(days=90) > last_modified + timedelta(
-            days=days_limit
-        )
+        return datetime.now() > last_modified + timedelta(days=days_limit)
 
     def _add_owners_mention(self, desc_list: list[str], owners: list[str]) -> list[str]:
         """
@@ -395,15 +430,17 @@ class RegistryStackMaintainer:
         """
         updates the stack content with the deprecated tag.
         """
-        devfile_dict = yaml.safe_load(stack.devfile_content)
+        # add deprecated stack
+        devfile_dict = self.yaml.load(stack.devfile_content)
         devfile_dict["metadata"]["tags"].append(DEPRECATED_TAG)
-        devfile_updated_content = yaml.dump(
-            devfile_dict, Dumper=IndentDumper, sort_keys=False
-        )
 
+        # dump new content to variable
+        _buf = io.StringIO()
+        _ = self.yaml.dump(devfile_dict, _buf)
+        devfile_updated_content = _buf.getvalue()
         desc_list = [
             "## What this PR does?\n",
-            "This PR deprecates the {} stack as it has reached the inactivity limit of {} days.".format(
+            "This PR deprecates the {} stack as it has reached the inactivity limit of {} days.".format(  # noqa: E501
                 stack.name, DEPRECATION_DAYS_LIMIT
             ),
         ]
@@ -431,7 +468,7 @@ class RegistryStackMaintainer:
         """
         desc_list = [
             "## What this PR does?\n",
-            "This PR deprecates the {} stack as it has reached the inactivity limit of {} days.".format(
+            "This PR deprecates the {} stack as it has reached the inactivity limit of {} days.".format(  # noqa: E501
                 stack.name, DEPRECATION_DAYS_LIMIT
             ),
         ]

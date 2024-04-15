@@ -2,9 +2,10 @@ from datetime import datetime
 from unittest.mock import patch
 
 from github import Github
+
+from maintainer import DATETIME_STRFTIME_FORMAT, GithubProvider
 from tests.mocker import GithubMocker
 from tests.utils import MaintainerTestCase, run_test_cases
-from maintainer import DATETIME_STRFTIME_FORMAT, GithubProvider
 
 mocker = GithubMocker()
 

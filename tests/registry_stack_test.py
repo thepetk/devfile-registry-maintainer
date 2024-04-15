@@ -1,7 +1,8 @@
 from datetime import datetime
 from unittest.mock import patch
-from tests.utils import MaintainerTestCase, run_test_cases
+
 from maintainer import RegistryStack
+from tests.utils import MaintainerTestCase, run_test_cases
 
 
 def test_get_stack_name(test_registry_stack: RegistryStack) -> None:

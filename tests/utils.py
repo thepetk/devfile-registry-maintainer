@@ -1,9 +1,10 @@
 import logging
 import os
-import pytest
-from pytest import MonkeyPatch
 from dataclasses import dataclass
 from typing import Any, Callable
+
+import pytest
+from pytest import MonkeyPatch
 
 
 @dataclass
@@ -21,7 +22,7 @@ def run_test_cases(tcs: list[MaintainerTestCase]) -> None:
         logging.info("running case: {}".format(tc.title))
         # first check if we expect an error
         if tc.want_error:
-            with pytest.raises(tc.want_error):
+            with pytest.raises(tc.want_error):  # type: ignore
                 # set args if tc.args is not none
                 assert tc.func() if tc.args is None else tc.func(*tc.args)
 

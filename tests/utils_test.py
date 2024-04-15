@@ -1,7 +1,8 @@
 import logging
 from unittest.mock import patch
-from tests.utils import MaintainerTestCase, run_test_cases
+
 from maintainer import get_int_env_var, get_logging_level
+from tests.utils import MaintainerTestCase, run_test_cases
 
 
 def test_get_int_env_var() -> None:
@@ -18,7 +19,7 @@ def test_get_int_env_var() -> None:
                 title="get int env var failure",
                 args=("TEST_ENV_VAR", "one"),
                 func=get_int_env_var,
-                want_error=SystemExit,
+                want_error=SystemExit,  # type: ignore
             ),
         ]
     )
