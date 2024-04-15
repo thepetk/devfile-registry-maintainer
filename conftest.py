@@ -77,7 +77,7 @@ def test_registry_stack_no_owners():
 @pytest.fixture(scope="session")
 def github_provider():
     os.environ["TEST_MODE"] = "1"
-    yield GithubProvider()
+    yield GithubProvider(token="test-token")
 
 
 @pytest.fixture(scope="session")
@@ -87,4 +87,4 @@ def yaml_provider():
 
 @pytest.fixture(scope="session")
 def registry_stack_maintainer():
-    yield RegistryStackMaintainer(token="test-token")
+    yield RegistryStackMaintainer()
