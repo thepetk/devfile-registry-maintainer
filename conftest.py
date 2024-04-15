@@ -87,4 +87,4 @@ def yaml_provider():
 
 @pytest.fixture(scope="session")
 def registry_stack_maintainer():
-    yield RegistryStackMaintainer()
+    yield RegistryStackMaintainer(token="test-token")
