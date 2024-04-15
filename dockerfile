@@ -9,9 +9,9 @@ LABEL "maintainer"="thepetk <thepetk@gmail.com>"
 WORKDIR /github/workspace/
 
 COPY entrypoint.sh /entrypoint.sh
-COPY requirements.txt /requirements.txt
-COPY maintainer.py /maintainer.py
+COPY requirements.txt .
+COPY maintainer.py .
 
-RUN pip install -r /requirements.txt
+RUN pip install -r requirements.txt
 
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
