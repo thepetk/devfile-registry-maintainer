@@ -50,17 +50,17 @@ def get_int_env_var(env_var: str, default: int) -> int:
         sys.exit(1)
 
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
-DEBUG_MODE = get_int_env_var("DEBUG_MODE", 0)
+GITHUB_TOKEN = os.getenv("INPUT_REGISTRY_REPO_TOKEN", "")
+DEBUG_MODE = get_int_env_var("INPUT_DEBUG_MODE", 0)
 DATETIME_STRFTIME_FORMAT = "%a, %d %b %Y %H:%M:%S GMT"
 DATETIME_STRPTIME_FORMAT = "%a, %d %b %Y %H:%M:%S %Z"
-DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "main")
-DEPRECATION_DAYS_LIMIT = get_int_env_var("DEPRECATION_INACTIVITY_LIMIT", 365)
+DEFAULT_BRANCH = os.getenv("INPUT_DEFAULT_BRANCH", "main")
+DEPRECATION_DAYS_LIMIT = get_int_env_var("INPUT_DEPRECATION_INACTIVITY_LIMIT", 365)
 DEPRECATED_TAG = "Deprecated"
-PR_CREATION_LIMIT = get_int_env_var("PR_CREATION_LIMIT", 5)
-REGISTRY_REPO = os.getenv("REGISTRY_REPO", "thepetk/registry")
-REMOVAL_DAYS_LIMIT = get_int_env_var("REMOVAL_DEPRECATION_LIMIT", 365)
-STACKS_DIR = os.getenv("STACKS_DIR", "stacks")
+PR_CREATION_LIMIT = get_int_env_var("INPUT_PR_CREATION_LIMIT", 5)
+REGISTRY_REPO = os.getenv("INPUT_REGISTRY_REPO", "thepetk/registry")
+REMOVAL_DAYS_LIMIT = get_int_env_var("INPUT_REMOVAL_DEPRECATION_LIMIT", 365)
+STACKS_DIR = os.getenv("INPUT_STACKS_DIR", "stacks")
 TEST_MODE = get_int_env_var("TEST_MODE", 0)
 
 
