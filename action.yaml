@@ -1,0 +1,42 @@
+name: "Devfile Registry Stack Deprecator"
+description: "Action that deprecates inactive devfile registry stacks found insie a registry repo"
+inputs:
+  debug_mode:
+    description: "Sets logging level to DEBUG [0/1]"
+    required: false
+    default: "0"
+  default_branch:
+    description: "Default branch of the registry repo"
+    required: false
+    default: "main"
+  deprecation_days_limit:
+    description: "Days of inactivity limit for deprecation"
+    required: false
+    default: "365"
+  pr_creation_limit:
+    description: "Limit of PRs created inside a single run"
+    required: false
+    default: "5"
+  registry_repo:
+    description: "The path of the registry github repo"
+    required: false
+    default: "devfile/registry"
+  removal_days_limit:
+    description: "Days of inactivity limit for removal"
+    required: false
+    default: "365"
+  stacks_dir:
+    description: "Stacks dir path."
+    required: false
+    default: "stacks"
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - ${{ inputs.debug_mode }}
+    - ${{ inputs.default_branch }}
+    - ${{ inputs.deprecation_days_limit }}
+    - ${{ inputs.pr_creation_limit }}
+    - ${{ inputs.registry_repo }}
+    - ${{ inputs.removal_days_limit }}
+    - ${{ inputs.stacks_dir }}
